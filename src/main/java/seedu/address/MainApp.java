@@ -1,5 +1,10 @@
 package seedu.address;
 
+import static seedu.address.model.util.SampleDataUtil.getSampleCustomerBook;
+import static seedu.address.model.util.SampleDataUtil.getSampleOrderBook;
+import static seedu.address.model.util.SampleDataUtil.getSamplePhoneBook;
+import static seedu.address.model.util.SampleDataUtil.getSampleScheduleBook;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -15,19 +20,16 @@ import seedu.address.commons.util.ConfigUtil;
 import seedu.address.commons.util.StringUtil;
 import seedu.address.logic.Logic;
 import seedu.address.logic.LogicManager;
-import seedu.address.model.CustomerBook;
+import seedu.address.model.DataBook;
 import seedu.address.model.Model;
 import seedu.address.model.ModelManager;
-import seedu.address.model.OrderBook;
-import seedu.address.model.PhoneBook;
 import seedu.address.model.ReadOnlyDataBook;
 import seedu.address.model.ReadOnlyUserPrefs;
-import seedu.address.model.ScheduleBook;
 import seedu.address.model.UserPrefs;
 import seedu.address.model.customer.Customer;
 import seedu.address.model.order.Order;
 import seedu.address.model.phone.Phone;
-import seedu.address.model.util.SampleDataUtil;
+import seedu.address.model.schedule.Schedule;
 import seedu.address.statistic.Statistic;
 import seedu.address.statistic.StatisticManager;
 import seedu.address.storage.AddressBookStorage;
@@ -46,6 +48,7 @@ import seedu.address.storage.StorageManager;
 import seedu.address.storage.UserPrefsStorage;
 import seedu.address.ui.Ui;
 import seedu.address.ui.UiManager;
+
 
 /**
  * Runs the application.
@@ -78,8 +81,9 @@ public class MainApp extends Application {
         PhoneBookStorage phoneBookStorage = new JsonPhoneBookStorage(userPrefs.getPhoneBookFilePath());
         ScheduleBookStorage scheduleBookStorage = new JsonScheduleBookStorage(userPrefs.getScheduleBookFilePath());
         OrderBookStorage orderBookStorage = new JsonOrderBookStorage(userPrefs.getOrderBookFilePath());
+        OrderBookStorage archivedOrderBookStorage = new JsonOrderBookStorage(userPrefs.getArchivedOrderBookFilePath());
         storage = new StorageManager(addressBookStorage, customerBookStorage, phoneBookStorage, scheduleBookStorage,
-                orderBookStorage, userPrefsStorage);
+                orderBookStorage, archivedOrderBookStorage, userPrefsStorage);
 
         initLogging(config);
         //create statistic manager;
@@ -97,70 +101,121 @@ public class MainApp extends Application {
     private Model initModelManager(Storage storage, ReadOnlyUserPrefs userPrefs) {
         Optional<ReadOnlyDataBook<Customer>> customerBookOptional;
         Optional<ReadOnlyDataBook<Phone>> phoneBookOptional;
+        Optional<ReadOnlyDataBook<Schedule>> scheduleBookOptional;
         Optional<ReadOnlyDataBook<Order>> orderBookOptional;
+        Optional<ReadOnlyDataBook<Order>> archivedOrderBookOptional;
 
         ReadOnlyDataBook<Customer> initialCustomerData;
         ReadOnlyDataBook<Phone> initialPhoneData;
+        ReadOnlyDataBook<Schedule> initialScheduleData;
         ReadOnlyDataBook<Order> initialOrderData;
+        ReadOnlyDataBook<Order> initialArchivedOrderData;
 
         try {
             customerBookOptional = storage.readCustomerBook();
 
-            if (!customerBookOptional.isPresent()) {
-                logger.info("Data file not found. Will be starting with a sample CustomerBook");
+            if (customerBookOptional.isEmpty()) {
+                logger.info("Data file not found. Will be starting with a new Customer DataBook");
             }
-            initialCustomerData = customerBookOptional.orElseGet(SampleDataUtil::getSampleCustomerBook);
+            initialCustomerData = customerBookOptional.orElse(getSampleCustomerBook());
 
         } catch (DataConversionException e) {
-            logger.warning("Data file not in the correct format. Will be starting with an empty CustomerBook");
-            initialCustomerData = new CustomerBook();
+            logger.warning("Data file not in the correct format."
+                    + " Will be starting with an empty Customer DataBook");
+            initialCustomerData = new DataBook<>();
 
         } catch (IOException e) {
-            logger.warning("Problem while reading from the file. Will be starting with an empty CustomerBook");
-            initialCustomerData = new CustomerBook();
+            logger.warning("Problem while reading from the file."
+                    + " Will be starting with an empty Customer DataBook");
+            initialCustomerData = new DataBook<>();
         }
 
         try {
             phoneBookOptional = storage.readPhoneBook();
 
-            if (!phoneBookOptional.isPresent()) {
-                logger.info("Data file not found. Will be starting with a sample PhoneBook");
+            if (phoneBookOptional.isEmpty()) {
+                logger.info("Data file not found. Will be starting with a new Phone DataBook");
             }
 
-            initialPhoneData = phoneBookOptional.orElseGet(SampleDataUtil::getSamplePhoneBook);
+            initialPhoneData = phoneBookOptional.orElse(getSamplePhoneBook());
 
         } catch (DataConversionException e) {
-            logger.warning("Data file not in the correct format. Will be starting with an empty PhoneBook");
-            initialPhoneData = new PhoneBook();
+            logger.warning("Data file not in the correct format. Will be starting with an empty Phone DataBook");
+            initialPhoneData = new DataBook<>();
 
         } catch (IOException e) {
-            logger.warning("Problem while reading from the file. Will be starting with an empty PhoneBook");
-            initialPhoneData = new PhoneBook();
+            logger.warning("Problem while reading from the file. Will be starting with an empty Phone DataBook");
+            initialPhoneData = new DataBook<>();
+        }
+
+        try {
+            scheduleBookOptional = storage.readScheduleBook();
+
+            if (scheduleBookOptional.isEmpty() || storage.readCustomerBook().isEmpty()
+                || storage.readPhoneBook().isEmpty() || storage.readOrderBook().isEmpty()) {
+                logger.info("Data file not found. Will be starting with a new Schedule DataBook");
+                initialScheduleData = new DataBook<>(getSampleScheduleBook());
+            } else {
+                initialScheduleData = scheduleBookOptional.orElse(new DataBook<>());
+            }
+
+
+        } catch (DataConversionException e) {
+            logger.warning("Data file not in the correct format. Will be starting with an empty Schedule DataBook");
+            initialScheduleData = new DataBook<>();
+
+        } catch (IOException e) {
+            logger.warning("Problem while reading from the file. Will be starting with an empty Schedule DataBook");
+            initialScheduleData = new DataBook<>();
         }
 
         try {
             orderBookOptional = storage.readOrderBook();
 
-            if (!orderBookOptional.isPresent()) {
-                logger.info("Data file not found. Will be starting with a sample OrderBook");
+            if (orderBookOptional.isEmpty() || storage.readCustomerBook().isEmpty()
+                || storage.readPhoneBook().isEmpty() || storage.readScheduleBook().isEmpty()) {
+                logger.info("Data file not found. Will be starting with a new Order DataBook");
+                initialOrderData = new DataBook<>(getSampleOrderBook());
+
+            } else {
+                initialOrderData = orderBookOptional.orElse(new DataBook<>());
+
             }
 
-            initialOrderData = orderBookOptional.orElseGet(SampleDataUtil::getSampleOrderBook);
+
 
         } catch (DataConversionException e) {
-            logger.warning("Data file not in the correct format. Will be starting with an empty OrderBook");
+            logger.warning("Data file not in the correct format. Will be starting with an empty Order DataBook");
 
-            initialOrderData = new OrderBook();
+            initialOrderData = new DataBook<>();
 
         } catch (IOException e) {
-            logger.warning("Problem while reading from the file. Will be starting with an empty OrderBook");
-            initialOrderData = new OrderBook();
+            logger.warning("Problem while reading from the file. Will be starting with an empty Order DataBook");
+            initialOrderData = new DataBook<>();
         }
 
-        //ReadOnlyDataBook<Customer> customerBook = SampleDataUtil.getSampleCustomerBook();
-        //ReadOnlyDataBook<Phone> phoneBook = SampleDataUtil.getSamplePhoneBook();
-        //ReadOnlyDataBook<Order> orderBook = SampleDataUtil.getSampleOrderBook();
-        return new ModelManager(initialCustomerData, initialPhoneData, initialOrderData, new ScheduleBook(), userPrefs);
+        try {
+            archivedOrderBookOptional = storage.readArchivedOrderBook();
+
+            if (!archivedOrderBookOptional.isPresent()) {
+                logger.info("Data file not found. Will be starting with a sample Archived Order DataBook");
+            }
+
+            initialArchivedOrderData = archivedOrderBookOptional.orElse(new DataBook<Order>());
+
+        } catch (DataConversionException e) {
+            logger.warning("Data file not in the correct format. Will be starting with an empty Order DataBook");
+
+            initialArchivedOrderData = new DataBook<>();
+
+        } catch (IOException e) {
+            logger.warning("Problem while reading from the file. Will be starting with an empty Order DataBook");
+            initialArchivedOrderData = new DataBook<>();
+        }
+
+
+        return new ModelManager(initialCustomerData, initialPhoneData, initialOrderData, initialScheduleData,
+                initialArchivedOrderData, userPrefs);
     }
 
     private void initLogging(Config config) {
